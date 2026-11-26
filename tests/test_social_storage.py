@@ -63,6 +63,96 @@ class TestSetSocialProfile:
         assert result1["id"] == result2["id"]
         # created_at must be preserved across updates
         assert result1["created_at"] == result2["created_at"]
+
+    def test_update_handle_resets_verification_status(self, storage):
+        """Should reset verified status to 0 when profile handle changes without explicit verification"""
+        storage.set_social_profile(
+            discord_user_id="123456",
+            platform="x",
+            profile_handle="alice",
+            display_value="https://x.com/alice",
+            verified=True,
+        )
+        initial = storage.get_social_profile("123456", "x")
+        assert initial["verified"] == 1
+
+        # Change handle without verified flag (defaults to False)
+        updated = storage.set_social_profile(
+            discord_user_id="123456",
+            platform="x",
+            profile_handle="bob",
+            display_value="https://x.com/bob",
+            verified=False,
+        )
+        assert updated["profile_handle"] == "bob"
+        assert updated["verified"] == 0
+
+        # Query back from database to ensure persistence
+        stored = storage.get_social_profile("123456", "x")
+        assert stored["profile_handle"] == "bob"
+        assert stored["verified"] == 0
+
+    def test_update_same_handle_preserves_verification_status(self, storage):
+        """Should preserve verified status when handle is unchanged and only display/metadata is updated"""
+        storage.set_social_profile(
+            discord_user_id="123456",
+            platform="x",
+            profile_handle="alice",
+            display_value="https://x.com/alice",
+            verified=True,
+        )
+
+        # Update display value for same handle without explicit verification
+        updated = storage.set_social_profile(
+            discord_user_id="123456",
+            platform="x",
+            profile_handle="alice",
+            display_value="https://x.com/alice (updated)",
+            verified=False,
+        )
+        assert updated["profile_handle"] == "alice"
+        assert updated["display_value"] == "https://x.com/alice (updated)"
+        assert updated["verified"] == 1
+
+    def test_update_same_handle_case_insensitive_preserves_verification(self, storage):
+        """Should preserve verified status when handle change is only case difference"""
+        storage.set_social_profile(
+            discord_user_id="123456",
+            platform="x",
+            profile_handle="Alice",
+            display_value="https://x.com/Alice",
+            verified=True,
+        )
+
+        updated = storage.set_social_profile(
+            discord_user_id="123456",
+            platform="x",
+            profile_handle="alice",
+            display_value="https://x.com/alice",
+            verified=False,
+        )
+        assert updated["profile_handle"] == "alice"
+        assert updated["verified"] == 1
+
+    def test_update_handle_with_explicit_verification_sets_verified(self, storage):
+        """Should set verified=1 when handle changes and caller explicitly passes verified=True"""
+        storage.set_social_profile(
+            discord_user_id="123456",
+            platform="x",
+            profile_handle="alice",
+            display_value="https://x.com/alice",
+            verified=False,
+        )
+
+        updated = storage.set_social_profile(
+            discord_user_id="123456",
+            platform="x",
+            profile_handle="bob",
+            display_value="https://x.com/bob",
+            verified=True,
+        )
+        assert updated["profile_handle"] == "bob"
+        assert updated["verified"] == 1
     
     def test_different_platforms_same_user(self, storage):
         """Should allow multiple platforms for same user"""

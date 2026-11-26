@@ -1365,7 +1365,7 @@ class SqliteStorage:
         verified_int = 1 if verified else 0
         
         with self._connect() as conn:
-            # Preserve existing verified=1 on update unless caller sets verified=True.
+            # Preserve existing verified=1 on update if handle is unchanged, or if caller sets verified=True.
             conn.execute(
                 """
                 INSERT INTO social_profiles
@@ -1377,7 +1377,8 @@ class SqliteStorage:
                     display_value = excluded.display_value,
                     verified = CASE
                         WHEN excluded.verified = 1 THEN 1
-                        ELSE social_profiles.verified
+                        WHEN LOWER(social_profiles.profile_handle) = LOWER(excluded.profile_handle) THEN social_profiles.verified
+                        ELSE 0
                     END,
                     updated_at = excluded.updated_at
                 """,
